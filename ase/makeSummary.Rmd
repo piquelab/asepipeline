@@ -1,0 +1,80 @@
+---
+title: "Summary"
+output: 
+  html_document: default
+  github_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(qqman)
+```
+
+## Summary of all the experiments. 
+
+The file `"Final.combined.tsv.gz"` contains all the the results combined across all libraries. 
+The columns are:
+
+1. chr = Chromosome
+2. pos = Position 1 based hg19
+3. rsid = rsid SNP ID
+4. ref = Reference Allele
+5. alt = Alternate Allele 
+6. id = Alternate SNP Id formed by chr:pos:ref:alt
+7. NSum = Number of reads matching any allele across all experiments at this location for a given individual (Indiv)
+8. R = Number of reads matching reference allele for this library (Exp)
+9. A = Number of reads matching alternate allele for this library (Exp)
+10. N = R+A
+11. beta = Quasar derived allelic imbalance estimate (aprox. ~log(R/A))
+12. beta.se = Quasar derived allelic imbalance estimate standard error.
+13. beta.z = beta/beta.se 
+14. pval = Quasar derived p-value 
+15. padj_quasar = Benjamini Hochberg adjusted p-value
+16. Exp = Library identifier 
+17. Assay = Type of assay 
+18. Indiv = Individual ID
+19. Cond = Condition NI (Not Infected) or Flu infected
+
+```{r}
+mydf <- read_tsv("Final.combined.tsv.gz")
+```
+
+## Global qqplot
+
+```{r echo=FALSE}
+qq(mydf$pval)
+```
+
+
+## Histograms of the allelic imbalance to check for bias. 
+
+```{r}
+mydf %>% mutate(AI=R/N) %>% group_by(Assay) %>% 
+  ggplot(aes(x=AI)) +
+  geom_histogram() + 
+  facet_wrap(vars(Assay),ncol=3) + 
+  geom_vline(xintercept=0.5) +
+  theme_bw()
+
+mydf %>% mutate(AI=R/N) %>% group_by(Assay) %>%
+  summarize(AI.mean=mean(AI),AI.median=median(AI))
+```
+
+
+
+
+## Summary significant results
+
+```{r}
+dfsig <- mydf %>% filter(padj_quasar<0.1) %>% mutate(Dir=if_else(beta>0,"Ref","Alt","NA"))
+dfsig %>% group_by(Assay,Dir) %>% summarize(n=n())
+```
+
+
+```{r}
+dfsig %>% group_by(Assay,Indiv,Cond) %>% summarize(n=n())
+write_tsv(dfsig,"Final.combined.Sig.tsv.gz")
+```
+
+
